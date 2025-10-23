@@ -53,98 +53,60 @@ import {
   correlateToolCallsWithResults,
 } from "@/lib/chat-types"
 
-// Initial conversation history
-const conversationHistory = [
-  {
-    period: "Today",
-    conversations: [
-      {
-        id: "t1",
-        title: "Project roadmap discussion",
-        lastMessage:
-          "Let's prioritize the authentication features for the next sprint.",
-        timestamp: new Date().setHours(new Date().getHours() - 2),
-      },
-      {
-        id: "t2",
-        title: "API Documentation Review",
-        lastMessage:
-          "The endpoint descriptions need more detail about rate limiting.",
-        timestamp: new Date().setHours(new Date().getHours() - 5),
-      },
-      {
-        id: "t3",
-        title: "Frontend Bug Analysis",
-        lastMessage:
-          "I found the issue - we need to handle the null state in the user profile component.",
-        timestamp: new Date().setHours(new Date().getHours() - 8),
-      },
-    ],
-  },
-  {
-    period: "Yesterday",
-    conversations: [
-      {
-        id: "y1",
-        title: "Database Schema Design",
-        lastMessage:
-          "Let's add indexes to improve query performance on these tables.",
-        timestamp: new Date().setDate(new Date().getDate() - 1),
-      },
-      {
-        id: "y2",
-        title: "Performance Optimization",
-        lastMessage:
-          "The lazy loading implementation reduced initial load time by 40%.",
-        timestamp: new Date().setDate(new Date().getDate() - 1),
-      },
-    ],
-  },
-  {
-    period: "Last 7 days",
-    conversations: [
-      {
-        id: "w1",
-        title: "Authentication Flow",
-        lastMessage: "We should implement the OAuth2 flow with refresh tokens.",
-        timestamp: new Date().setDate(new Date().getDate() - 3),
-      },
-      {
-        id: "w2",
-        title: "Component Library",
-        lastMessage:
-          "These new UI components follow the design system guidelines perfectly.",
-        timestamp: new Date().setDate(new Date().getDate() - 5),
-      },
-      {
-        id: "w3",
-        title: "UI/UX Feedback",
-        lastMessage:
-          "The navigation redesign received positive feedback from the test group.",
-        timestamp: new Date().setDate(new Date().getDate() - 6),
-      },
-    ],
-  },
-  {
-    period: "Last month",
-    conversations: [
-      {
-        id: "m1",
-        title: "Initial Project Setup",
-        lastMessage:
-          "All the development environments are now configured consistently.",
-        timestamp: new Date().setDate(new Date().getDate() - 15),
-      },
-    ],
-  },
-]
+// Types for conversation history
+type ConversationItem = {
+  id: string
+  title: string
+  lastMessage: string
+  timestamp: number
+}
+
+type ConversationGroup = {
+  period: string
+  conversations: ConversationItem[]
+}
+
+// Helper to group conversations by time period
+function groupConversationsByPeriod(conversations: ConversationItem[]): ConversationGroup[] {
+  const now = Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  
+  const today: ConversationItem[] = []
+  const yesterday: ConversationItem[] = []
+  const lastWeek: ConversationItem[] = []
+  const lastMonth: ConversationItem[] = []
+  
+  conversations.forEach((conv) => {
+    const diff = now - conv.timestamp
+    if (diff < dayMs) {
+      today.push(conv)
+    } else if (diff < 2 * dayMs) {
+      yesterday.push(conv)
+    } else if (diff < 7 * dayMs) {
+      lastWeek.push(conv)
+    } else if (diff < 30 * dayMs) {
+      lastMonth.push(conv)
+    }
+  })
+  
+  const groups: ConversationGroup[] = []
+  if (today.length > 0) groups.push({ period: "Today", conversations: today })
+  if (yesterday.length > 0) groups.push({ period: "Yesterday", conversations: yesterday })
+  if (lastWeek.length > 0) groups.push({ period: "Last 7 days", conversations: lastWeek })
+  if (lastMonth.length > 0) groups.push({ period: "Last month", conversations: lastMonth })
+  
+  return groups
+}
 
 
 interface ChatSidebarProps {
-  onNewChat?: () => void;
+  onNewChat?: () => void
+  conversations?: ConversationItem[]
 }
 
-function ChatSidebar({ onNewChat }: ChatSidebarProps) {
+function ChatSidebar({ onNewChat, conversations = [] }: ChatSidebarProps) {
+  const conversationGroups = groupConversationsByPeriod(conversations)
+  
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
@@ -166,18 +128,24 @@ function ChatSidebar({ onNewChat }: ChatSidebarProps) {
             <span>New Chat</span>
           </Button>
         </div>
-        {conversationHistory.map((group) => (
-          <SidebarGroup key={group.period}>
-            <SidebarGroupLabel>{group.period}</SidebarGroupLabel>
-            <SidebarMenu>
-              {group.conversations.map((conversation) => (
-                <SidebarMenuButton key={conversation.id}>
-                  <span>{conversation.title}</span>
-                </SidebarMenuButton>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+        {conversationGroups.length === 0 ? (
+          <div className="px-4 text-sm text-muted-foreground">
+            No conversation history yet
+          </div>
+        ) : (
+          conversationGroups.map((group) => (
+            <SidebarGroup key={group.period}>
+              <SidebarGroupLabel>{group.period}</SidebarGroupLabel>
+              <SidebarMenu>
+                {group.conversations.map((conversation) => (
+                  <SidebarMenuButton key={conversation.id}>
+                    <span>{conversation.title}</span>
+                  </SidebarMenuButton>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+          ))
+        )}
       </SidebarContent>
     </Sidebar>
   )
@@ -527,15 +495,21 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
 }
 
 interface FullChatAppProps {
-  initialMessages?: ChatMessage[];
-  initialToolEvents?: ToolEvent[];
-  onNewChat?: () => void;
+  initialMessages?: ChatMessage[]
+  initialToolEvents?: ToolEvent[]
+  onNewChat?: () => void
+  conversations?: ConversationItem[]
 }
 
-function FullChatApp({ initialMessages = [], initialToolEvents = [], onNewChat }: FullChatAppProps) {
+function FullChatApp({ 
+  initialMessages = [], 
+  initialToolEvents = [], 
+  onNewChat,
+  conversations = []
+}: FullChatAppProps) {
   return (
     <SidebarProvider>
-      <ChatSidebar onNewChat={onNewChat} />
+      <ChatSidebar onNewChat={onNewChat} conversations={conversations} />
       <SidebarInset>
         <ChatContent 
           initialMessages={initialMessages}
@@ -546,4 +520,4 @@ function FullChatApp({ initialMessages = [], initialToolEvents = [], onNewChat }
   )
 }
 
-export { FullChatApp }
+export { FullChatApp, type ConversationItem, type ConversationGroup }
