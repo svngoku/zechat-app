@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils"
 import {
   ArrowUp,
   Copy,
-  Globe,
   Mic,
   MoreHorizontal,
   Pencil,
@@ -45,7 +44,14 @@ import {
   ThumbsUp,
   Trash,
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
+import {
+  chatApiResponseSchema,
+  mapApiResponseToChatUpserts,
+  type ChatMessage,
+  type ToolEvent,
+  correlateToolCallsWithResults,
+} from "@/lib/chat-types"
 
 // Initial conversation history
 const conversationHistory = [
@@ -138,11 +144,8 @@ function ChatSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
-        <div className="flex flex-row items-center gap-2 px-2">
-          <div className="bg-primary/10 size-8 rounded-md"></div>
-          <div className="text-md font-base text-primary tracking-tight">
-            zola.chat
-          </div>
+        <div className="flex flex-row items-center gap-2 px-2 mx-4 rounded-lg py-2">
+            <img src="/svgs_collection/zeroentropy-dark.svg" className="h-auto" alt="logo" />
         </div>
         <Button variant="ghost" className="size-8">
           <Search className="size-4" />
@@ -175,31 +178,36 @@ function ChatSidebar() {
   )
 }
 
-type Message = {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  toolInvocations?: Array<{
-    toolCallId: string;
-    toolName: string;
-    state: "call" | "result";
-    result?: any;
-  }>;
-};
+interface ChatContentProps {
+  initialMessages?: ChatMessage[];
+  initialToolEvents?: ToolEvent[];
+}
 
-function ChatContent() {
+function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatContentProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  // Seed initial messages and tool events
+  useEffect(() => {
+    if (initialMessages.length > 0) {
+      setMessages(initialMessages);
+    }
+    if (initialToolEvents.length > 0) {
+      setToolEvents(initialToolEvents);
+    }
+  }, [initialMessages, initialToolEvents]);
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
       content: input.trim(),
+      createdAt: Date.now(),
     }
 
     setMessages((prev) => [...prev, userMessage])
@@ -222,39 +230,31 @@ function ChatContent() {
         throw new Error("Failed to get response")
       }
 
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: "",
-        toolInvocations: [],
+      const data = await response.json()
+      const validated = chatApiResponseSchema.parse(data)
+
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("API Response:", {
+          text: validated.text,
+          toolCallsCount: validated.toolCalls.length,
+          toolResultsCount: validated.toolResults.length,
+          stepsCount: validated.stepsCount,
+        })
       }
 
-      setMessages((prev) => [...prev, assistantMessage])
+      const { assistantMessage, toolEvents: newToolEvents } =
+        mapApiResponseToChatUpserts(validated)
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+      if (assistantMessage) {
+        setMessages((prev) => [...prev, assistantMessage])
+      }
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split("\n")
-
-          for (const line of lines) {
-            if (line.startsWith("0:")) {
-              const data = line.slice(3)
-              assistantMessage.content += data
-              setMessages((prev) => [
-                ...prev.slice(0, -1),
-                { ...assistantMessage },
-              ])
-            }
-          }
-        }
+      if (newToolEvents.length > 0) {
+        setToolEvents((prev) => [...prev, ...newToolEvents])
       }
     } catch (error) {
       console.error("Chat error:", error)
+      // TODO: Add error message to UI
     } finally {
       setIsLoading(false)
     }
@@ -270,10 +270,14 @@ function ChatContent() {
       <div ref={chatContainerRef} className="relative flex-1 overflow-y-auto">
         <ChatContainerRoot className="h-full">
           <ChatContainerContent className="space-y-0 px-5 py-12">
-            {messages.map((message: Message, index: number) => {
+            {messages.map((message: ChatMessage, index: number) => {
               const isAssistant = message.role === "assistant"
               const isLastMessage = index === messages.length - 1
-              const hasToolInvocations = message.toolInvocations && message.toolInvocations.length > 0
+              
+              // Get tool events related to this message (all tool events between this and previous message)
+              const messageToolEvents = isAssistant && isLastMessage 
+                ? toolEvents.filter((_, idx) => idx >= toolEvents.length - (toolEvents.length > 0 ? Math.min(10, toolEvents.length) : 0))
+                : []
 
               return (
                 <Message
@@ -287,68 +291,67 @@ function ChatContent() {
                     <div className="group flex w-full flex-col gap-2">
                       {message.content && (
                         <MessageContent
-                          className="text-foreground prose flex-1 rounded-lg bg-transparent p-0"
+                          className="text-foreground prose flex-1 rounded-lg bg-transparent p-0 "
                           markdown
                         >
                           {message.content}
                         </MessageContent>
                       )}
                       
-                      {/* Render tool invocations */}
-                      {hasToolInvocations && (
-                        <div className="space-y-2">
-                          {message.toolInvocations?.map((toolInvocation: Record<string, unknown>) => {
-                            const state = toolInvocation.state
+                      {/* Render tool events */}
+                      {messageToolEvents.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          {(() => {
+                            const toolCalls = messageToolEvents.filter(e => e.type === "tool-call")
+                            const toolResults = messageToolEvents.filter(e => e.type === "tool-result")
+                            const correlated = correlateToolCallsWithResults(
+                              toolCalls as Parameters<typeof correlateToolCallsWithResults>[0],
+                              toolResults as Parameters<typeof correlateToolCallsWithResults>[1]
+                            )
                             
-                            if (state === "result" && toolInvocation.result) {
-                              const result = toolInvocation.result as Record<string, unknown>
+                            return correlated.map(({ call, result }) => {
+                              if (!result) return null
                               
-                              if (result.success && Array.isArray(result.results) && result.results.length > 0) {
-                                return (
-                                  <div
-                                    key={toolInvocation.toolCallId}
-                                    className="border-muted bg-muted/30 rounded-lg border p-3"
-                                  >
-                                    <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium">
-                                      <Search className="size-4" />
-                                      Search Results ({result.count})
-                                    </div>
+                              const resultData = result.result as Record<string, unknown>
+                              
+                              return (
+                                <div
+                                  key={call.toolCallId}
+                                  className="border-muted bg-muted/30 rounded-lg border p-3"
+                                >
+                                  <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium">
+                                    <Search className="size-4" />
+                                    {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
+                                    {resultData?.count && ` (${resultData.count} results)`}
+                                  </div>
+                                  
+                                  {resultData?.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
                                     <div className="space-y-2">
-                                      {(result.results as Array<Record<string, unknown>>).slice(0, 3).map((r: Record<string, unknown>) => (
+                                      {resultData.results.slice(0, 3).map((r: Record<string, unknown>) => (
                                         <div
-                                          key={String(r.id)}
+                                          key={r.id}
                                           className="border-border bg-background rounded border p-2 text-sm"
                                         >
                                           <div className="text-muted-foreground mb-1 text-xs">
-                                            {String(r.path)} (Score: {typeof r.score === 'number' ? r.score.toFixed(3) : '0'})
+                                            {r.path} {r.score && `(Score: ${r.score.toFixed(3)})`}
                                           </div>
                                           <div className="line-clamp-2">
-                                            {String(r.content)}
+                                            {r.content}
                                           </div>
                                         </div>
                                       ))}
                                     </div>
-                                  </div>
-                                )
-                              }
-                            }
-                            
-                            if (state === "call") {
-                              return (
-                                <div
-                                  key={String(toolInvocation.toolCallId)}
-                                  className="border-muted bg-muted/30 rounded-lg border p-3"
-                                >
-                                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                    <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                    Searching knowledge base...
-                                  </div>
+                                  )}
+                                  
+                                  {(!resultData?.success || !resultData?.results?.length) && (
+                                    <div className="text-muted-foreground text-sm">
+                                      No results found
+                                    </div>
+                                  )}
                                 </div>
                               )
-                            }
-                            
-                            return null
-                          })}
+                            })
+                          })()}
                         </div>
                       )}
                       
@@ -464,13 +467,6 @@ function ChatContent() {
                     </Button>
                   </PromptInputAction>
 
-                  <PromptInputAction tooltip="Search">
-                    <Button variant="outline" className="rounded-full">
-                      <Globe size={18} />
-                      Search
-                    </Button>
-                  </PromptInputAction>
-
                   <PromptInputAction tooltip="More actions">
                     <Button
                       variant="outline"
@@ -514,12 +510,20 @@ function ChatContent() {
   )
 }
 
-function FullChatApp() {
+interface FullChatAppProps {
+  initialMessages?: ChatMessage[];
+  initialToolEvents?: ToolEvent[];
+}
+
+function FullChatApp({ initialMessages = [], initialToolEvents = [] }: FullChatAppProps) {
   return (
     <SidebarProvider>
       <ChatSidebar />
       <SidebarInset>
-        <ChatContent />
+        <ChatContent 
+          initialMessages={initialMessages}
+          initialToolEvents={initialToolEvents}
+        />
       </SidebarInset>
     </SidebarProvider>
   )
