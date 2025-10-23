@@ -140,7 +140,11 @@ const conversationHistory = [
 ]
 
 
-function ChatSidebar() {
+interface ChatSidebarProps {
+  onNewChat?: () => void;
+}
+
+function ChatSidebar({ onNewChat }: ChatSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
@@ -156,6 +160,7 @@ function ChatSidebar() {
           <Button
             variant="outline"
             className="mb-4 flex w-full items-center gap-2"
+            onClick={onNewChat}
           >
             <PlusIcon className="size-4" />
             <span>New Chat</span>
@@ -312,7 +317,18 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                             return correlated.map(({ call, result }) => {
                               if (!result) return null
                               
-                              const resultData = result.result as Record<string, unknown>
+                              const resultData = result.result as { 
+                                success?: boolean;
+                                count?: number;
+                                results?: Array<{
+                                  id: string;
+                                  path: string;
+                                  content: string;
+                                  score?: number;
+                                }>;
+                              } | undefined
+                              
+                              if (!resultData) return null
                               
                               return (
                                 <div
@@ -322,12 +338,12 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                                   <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium">
                                     <Search className="size-4" />
                                     {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
-                                    {resultData?.count && ` (${resultData.count} results)`}
+                                    {resultData.count && ` (${resultData.count} results)`}
                                   </div>
                                   
-                                  {resultData?.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
+                                  {resultData.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
                                     <div className="space-y-2">
-                                      {resultData.results.slice(0, 3).map((r: Record<string, unknown>) => (
+                                      {resultData.results.slice(0, 3).map((r) => (
                                         <div
                                           key={r.id}
                                           className="border-border bg-background rounded border p-2 text-sm"
@@ -343,7 +359,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                                     </div>
                                   )}
                                   
-                                  {(!resultData?.success || !resultData?.results?.length) && (
+                                  {(!resultData.success || !resultData.results?.length) && (
                                     <div className="text-muted-foreground text-sm">
                                       No results found
                                     </div>
@@ -513,12 +529,13 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
 interface FullChatAppProps {
   initialMessages?: ChatMessage[];
   initialToolEvents?: ToolEvent[];
+  onNewChat?: () => void;
 }
 
-function FullChatApp({ initialMessages = [], initialToolEvents = [] }: FullChatAppProps) {
+function FullChatApp({ initialMessages = [], initialToolEvents = [], onNewChat }: FullChatAppProps) {
   return (
     <SidebarProvider>
-      <ChatSidebar />
+      <ChatSidebar onNewChat={onNewChat} />
       <SidebarInset>
         <ChatContent 
           initialMessages={initialMessages}

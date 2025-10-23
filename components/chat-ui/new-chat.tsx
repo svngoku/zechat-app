@@ -16,6 +16,7 @@ import {
   Mic,
   Paperclip,
   Plus,
+  PlusIcon,
   Search,
   Send,
   Sparkles,
@@ -30,6 +31,17 @@ import {
   type ChatMessage,
   type ToolEvent,
 } from "@/lib/chat-types";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
 
 interface NewChatAppProps {
   onStartChat: (data: {
@@ -38,7 +50,59 @@ interface NewChatAppProps {
   }) => void;
 }
 
-export default function NewChatApp({ onStartChat }: NewChatAppProps) {
+// Dummy conversation history for the sidebar (can be real data later)
+const conversationHistory = [
+  {
+    period: "Recent",
+    conversations: [
+      {
+        id: "placeholder1",
+        title: "Example conversation",
+      },
+    ],
+  },
+];
+
+function NewChatSidebar() {
+  return (
+    <Sidebar>
+      <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
+        <div className="flex flex-row items-center gap-2 px-2 mx-4 rounded-lg py-2">
+          <img src="/svgs_collection/zeroentropy-dark.svg" className="h-auto" alt="logo" />
+        </div>
+        <Button variant="ghost" className="size-8">
+          <Search className="size-4" />
+        </Button>
+      </SidebarHeader>
+      <SidebarContent className="pt-4">
+        <div className="px-4">
+          <Button
+            variant="outline"
+            className="mb-4 flex w-full items-center gap-2"
+            disabled
+          >
+            <PlusIcon className="size-4" />
+            <span>New Chat</span>
+          </Button>
+        </div>
+        {conversationHistory.map((group) => (
+          <SidebarGroup key={group.period}>
+            <SidebarGroupLabel>{group.period}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.conversations.map((conversation) => (
+                <SidebarMenuButton key={conversation.id} disabled>
+                  <span className="text-muted-foreground">{conversation.title}</span>
+                </SidebarMenuButton>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+function NewChatContent({ onStartChat }: NewChatAppProps) {
   const [message, setMessage] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,19 +185,21 @@ export default function NewChatApp({ onStartChat }: NewChatAppProps) {
   };
 
   return (
-    <div className="w-full">
-      <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap">
-        How can I help you today?
-      </h1>
+    <main className="flex h-screen flex-col overflow-hidden">
+      <div className="flex-1 flex items-center justify-center overflow-y-auto">
+        <div className="w-full max-w-3xl px-4">
+          <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap">
+            How can I help you today?
+          </h1>
 
-      {error && (
-        <div className="mb-4 mx-auto max-w-2xl rounded-lg bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-2">
-          <AlertCircle className="size-4 text-destructive mt-0.5" />
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
+          {error && (
+            <div className="mb-4 mx-auto max-w-2xl rounded-lg bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-2">
+              <AlertCircle className="size-4 text-destructive mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
 
-      <form onSubmit={handleSubmit} className="group/composer w-full">
+          <form onSubmit={handleSubmit} className="group/composer w-full">
         <input
           ref={fileInputRef}
           type="file"
@@ -270,8 +336,21 @@ export default function NewChatApp({ onStartChat }: NewChatAppProps) {
             </div>
           </div>
         </div>
-      </form>
-    </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function NewChatApp(props: NewChatAppProps) {
+  return (
+    <SidebarProvider>
+      <NewChatSidebar />
+      <SidebarInset>
+        <NewChatContent {...props} />
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 

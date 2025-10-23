@@ -23,18 +23,21 @@ export default function Home() {
     setMode("full");
   };
 
+  const handleNewChat = () => {
+    setInitialMessages([]);
+    setInitialToolEvents([]);
+    setMode("new");
+  };
+
   return (
     <>
       {mode === "new" ? (
-        <div className="flex h-screen items-center justify-center">
-          <div className="w-full max-w-4xl">
-            <NewChatApp onStartChat={handleStartChat} />
-          </div>
-        </div>
+        <NewChatApp onStartChat={handleStartChat} />
       ) : (
         <FullChatApp
           initialMessages={initialMessages}
           initialToolEvents={initialToolEvents}
+          onNewChat={handleNewChat}
         />
       )}
     </>

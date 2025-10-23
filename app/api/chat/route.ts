@@ -2,7 +2,7 @@ import { openai } from "@ai-sdk/openai";
 import { NextRequest } from "next/server";
 import { zeroEntropyTools } from "@/lib/zeroentropy-tools";
 import { getEnv } from "@/lib/env";
-import { generateText, CoreMessage } from 'ai';
+import { generateText, CoreMessage, stepCountIs } from 'ai';
 
 export const maxDuration = 30;
 
@@ -42,18 +42,15 @@ When users ask questions that would benefit from external knowledge or facts, us
     const toolCalls = (response.toolCalls || []).map(call => ({
       toolCallId: call.toolCallId,
       toolName: call.toolName,
-      // @ts-expect-error - AI SDK types vary, access args safely
-      args: (call as Record<string, unknown>).args || {},
+      args: (call as unknown as { args?: Record<string, unknown> }).args || {},
     }));
 
     // Map AI SDK toolResults to our schema
     const toolResults = (response.toolResults || []).map(result => ({
       toolCallId: result.toolCallId,
       toolName: result.toolName,
-      // @ts-expect-error - AI SDK types vary, access args/result safely
-      args: (result as Record<string, unknown>).args || {},
-      // @ts-expect-error - AI SDK types vary
-      result: (result as Record<string, unknown>).result,
+      args: (result as unknown as { args?: Record<string, unknown> }).args || {},
+      result: (result as unknown as { result?: unknown }).result,
     }));
 
     return new Response(
