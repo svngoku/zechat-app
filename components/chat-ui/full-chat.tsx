@@ -19,26 +19,18 @@ import {
 import { ScrollButton } from "@/components/ui/scroll-button"
 import { Button } from "@/components/ui/button"
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { ChatSidebar, type ConversationItem } from "@/components/chat-ui/chat-sidebar"
 import { cn } from "@/lib/utils"
 import {
   ArrowUp,
   Copy,
-  Mic,
   MoreHorizontal,
   Pencil,
   Plus,
-  PlusIcon,
   Search,
   ThumbsDown,
   ThumbsUp,
@@ -52,116 +44,26 @@ import {
   type ToolEvent,
   correlateToolCallsWithResults,
 } from "@/lib/chat-types"
-
-// Types for conversation history
-type ConversationItem = {
-  id: string
-  title: string
-  lastMessage: string
-  timestamp: number
-}
-
-type ConversationGroup = {
-  period: string
-  conversations: ConversationItem[]
-}
-
-// Helper to group conversations by time period
-function groupConversationsByPeriod(conversations: ConversationItem[]): ConversationGroup[] {
-  const now = Date.now()
-  const dayMs = 24 * 60 * 60 * 1000
-  
-  const today: ConversationItem[] = []
-  const yesterday: ConversationItem[] = []
-  const lastWeek: ConversationItem[] = []
-  const lastMonth: ConversationItem[] = []
-  
-  conversations.forEach((conv) => {
-    const diff = now - conv.timestamp
-    if (diff < dayMs) {
-      today.push(conv)
-    } else if (diff < 2 * dayMs) {
-      yesterday.push(conv)
-    } else if (diff < 7 * dayMs) {
-      lastWeek.push(conv)
-    } else if (diff < 30 * dayMs) {
-      lastMonth.push(conv)
-    }
-  })
-  
-  const groups: ConversationGroup[] = []
-  if (today.length > 0) groups.push({ period: "Today", conversations: today })
-  if (yesterday.length > 0) groups.push({ period: "Yesterday", conversations: yesterday })
-  if (lastWeek.length > 0) groups.push({ period: "Last 7 days", conversations: lastWeek })
-  if (lastMonth.length > 0) groups.push({ period: "Last month", conversations: lastMonth })
-  
-  return groups
-}
-
-
-interface ChatSidebarProps {
-  onNewChat?: () => void
-  conversations?: ConversationItem[]
-}
-
-function ChatSidebar({ onNewChat, conversations = [] }: ChatSidebarProps) {
-  const conversationGroups = groupConversationsByPeriod(conversations)
-  
-  return (
-    <Sidebar>
-      <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
-        <div className="flex flex-row items-center gap-2 px-2 mx-4 rounded-lg py-2">
-            <img src="/svgs_collection/zeroentropy-dark.svg" className="h-auto" alt="logo" />
-        </div>
-        <Button variant="ghost" className="size-8">
-          <Search className="size-4" />
-        </Button>
-      </SidebarHeader>
-      <SidebarContent className="pt-4">
-        <div className="px-4">
-          <Button
-            variant="outline"
-            className="mb-4 flex w-full items-center gap-2"
-            onClick={onNewChat}
-          >
-            <PlusIcon className="size-4" />
-            <span>New Chat</span>
-          </Button>
-        </div>
-        {conversationGroups.length === 0 ? (
-          <div className="px-4 text-sm text-muted-foreground">
-            No conversation history yet
-          </div>
-        ) : (
-          conversationGroups.map((group) => (
-            <SidebarGroup key={group.period}>
-              <SidebarGroupLabel>{group.period}</SidebarGroupLabel>
-              <SidebarMenu>
-                {group.conversations.map((conversation) => (
-                  <SidebarMenuButton key={conversation.id}>
-                    <span>{conversation.title}</span>
-                  </SidebarMenuButton>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          ))
-        )}
-      </SidebarContent>
-    </Sidebar>
-  )
-}
+import { 
+  saveConversation, getConversationsForSidebar, 
+  getConversation 
+} from "@/lib/chat-storage"
 
 interface ChatContentProps {
+  conversationId?: string;
   initialMessages?: ChatMessage[];
   initialToolEvents?: ToolEvent[];
+  onConversationUpdate?: () => void;
+  conversationTitle?: string;
 }
 
-function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatContentProps) {
+function ChatContent({ conversationId, initialMessages = [], initialToolEvents = [], onConversationUpdate, conversationTitle }: ChatContentProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [title, setTitle] = useState(conversationTitle || "New Chat")
 
   // Seed initial messages and tool events
   useEffect(() => {
@@ -172,6 +74,21 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
       setToolEvents(initialToolEvents);
     }
   }, [initialMessages, initialToolEvents]);
+
+  // Update title when conversation changes
+  useEffect(() => {
+    const loadTitle = async () => {
+      if (conversationId) {
+        const conversation = await getConversation(conversationId);
+        if (conversation) {
+          setTitle(conversation.title);
+        }
+      } else {
+        setTitle("New Chat");
+      }
+    };
+    loadTitle();
+  }, [conversationId]);
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
@@ -225,6 +142,19 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
       if (newToolEvents.length > 0) {
         setToolEvents((prev) => [...prev, ...newToolEvents])
       }
+
+      // Save conversation to localStorage
+      if (conversationId) {
+        const updatedMessages = assistantMessage 
+          ? [...messages, userMessage, assistantMessage]
+          : [...messages, userMessage];
+        const updatedToolEvents = newToolEvents.length > 0
+          ? [...toolEvents, ...newToolEvents]
+          : toolEvents;
+        
+        await saveConversation(conversationId, updatedMessages, updatedToolEvents);
+        onConversationUpdate?.();
+      }
     } catch (error) {
       console.error("Chat error:", error)
       // TODO: Add error message to UI
@@ -237,7 +167,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
     <main className="flex h-screen flex-col overflow-hidden">
       <header className="bg-background z-10 flex h-16 w-full shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
-        <div className="text-foreground">Project roadmap discussion</div>
+        <div className="text-foreground font-sans text-base font-medium truncate">{title}</div>
       </header>
 
       <div ref={chatContainerRef} className="relative flex-1 overflow-y-auto">
@@ -253,7 +183,8 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                 : []
 
               return (
-                <Message
+               <div>
+                 <Message
                   key={message.id}
                   className={cn(
                     "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6",
@@ -264,7 +195,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                     <div className="group flex w-full flex-col gap-2">
                       {message.content && (
                         <MessageContent
-                          className="text-foreground prose flex-1 rounded-lg bg-transparent p-0 "
+                          className="text-foreground prose flex-1 rounded-lg bg-transparent p-0 font-sans"
                           markdown
                         >
                           {message.content}
@@ -282,59 +213,70 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                               toolResults as Parameters<typeof correlateToolCallsWithResults>[1]
                             )
                             
-                            return correlated.map(({ call, result }) => {
-                              if (!result) return null
-                              
-                              const resultData = result.result as { 
-                                success?: boolean;
-                                count?: number;
-                                results?: Array<{
-                                  id: string;
-                                  path: string;
-                                  content: string;
-                                  score?: number;
-                                }>;
-                              } | undefined
-                              
-                              if (!resultData) return null
-                              
-                              return (
-                                <div
-                                  key={call.toolCallId}
-                                  className="border-muted bg-muted/30 rounded-lg border p-3"
-                                >
-                                  <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium">
-                                    <Search className="size-4" />
-                                    {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
-                                    {resultData.count && ` (${resultData.count} results)`}
+                            return correlated
+                              .filter(({ result }) => {
+                                if (!result) return false;
+                                const resultData = result.result as { 
+                                  success?: boolean;
+                                  count?: number;
+                                  results?: Array<{
+                                    id: string;
+                                    path: string;
+                                    content: string;
+                                    score?: number;
+                                  }>;
+                                } | undefined;
+                                return resultData !== null && resultData !== undefined;
+                              })
+                              .map(({ call, result }) => {
+                                const resultData = result!.result as { 
+                                  success?: boolean;
+                                  count?: number;
+                                  results?: Array<{
+                                    id: string;
+                                    path: string;
+                                    content: string;
+                                    score?: number;
+                                  }>;
+                                } | undefined;
+                                
+                                return (
+                                  <div
+                                    key={call.toolCallId}
+                                    className="border-muted bg-muted/30 rounded-lg border p-3"
+                                  >
+                                    <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium font-sans">
+                                      <Search className="size-4" />
+                                      {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
+                                      {resultData?.count && ` (${resultData.count} results)`}
+                                    </div>
+                                    
+                                    {resultData?.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
+                                      <div className="space-y-2">
+                                        {resultData.results.slice(0, 3).map((r) => (
+                                          <div
+                                            key={r.id}
+                                            className="border-border bg-background rounded border p-2 text-sm"
+                                          >
+                                            <div className="text-muted-foreground mb-1 text-xs font-mono">
+                                              {r.path} {r.score && `(Score: ${r.score.toFixed(3)})`}
+                                            </div>
+                                            <div className="line-clamp-2 font-sans">
+                                              {r.content}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    
+                                    {(!resultData?.success || !resultData.results?.length) && (
+                                      <div className="text-muted-foreground text-sm font-sans">
+                                        No results found
+                                      </div>
+                                    )}
                                   </div>
-                                  
-                                  {resultData.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
-                                    <div className="space-y-2">
-                                      {resultData.results.slice(0, 3).map((r) => (
-                                        <div
-                                          key={r.id}
-                                          className="border-border bg-background rounded border p-2 text-sm"
-                                        >
-                                          <div className="text-muted-foreground mb-1 text-xs">
-                                            {r.path} {r.score && `(Score: ${r.score.toFixed(3)})`}
-                                          </div>
-                                          <div className="line-clamp-2">
-                                            {r.content}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  {(!resultData.success || !resultData.results?.length) && (
-                                    <div className="text-muted-foreground text-sm">
-                                      No results found
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })
+                                );
+                              })
                           })()}
                         </div>
                       )}
@@ -376,7 +318,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                     </div>
                   ) : (
                     <div className="group flex flex-col items-end gap-1">
-                      <MessageContent className="bg-muted text-primary max-w-[85%] rounded-3xl px-5 py-2.5 sm:max-w-[75%]">
+                      <MessageContent className="bg-muted text-primary max-w-[85%] rounded-3xl px-5 py-2.5 sm:max-w-[75%] font-sans">
                         {message.content}
                       </MessageContent>
                       <MessageActions
@@ -415,6 +357,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                     </div>
                   )}
                 </Message>
+               </div>
               )
             })}
           </ChatContainerContent>
@@ -436,7 +379,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
             <div className="flex flex-col">
               <PromptInputTextarea
                 placeholder="Ask anything"
-                className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
+                className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base font-sans"
               />
 
               <PromptInputActions className="mt-5 flex w-full items-center justify-between gap-2 px-3 pb-3">
@@ -462,7 +405,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                   </PromptInputAction>
                 </div>
                 <div className="flex items-center gap-2">
-                  <PromptInputAction tooltip="Voice input">
+                  {/* <PromptInputAction tooltip="Voice input">
                     <Button
                       variant="outline"
                       size="icon"
@@ -470,7 +413,7 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
                     >
                       <Mic size={18} />
                     </Button>
-                  </PromptInputAction>
+                  </PromptInputAction> */}
 
                   <Button
                     size="icon"
@@ -495,29 +438,63 @@ function ChatContent({ initialMessages = [], initialToolEvents = [] }: ChatConte
 }
 
 interface FullChatAppProps {
-  initialMessages?: ChatMessage[]
-  initialToolEvents?: ToolEvent[]
-  onNewChat?: () => void
-  conversations?: ConversationItem[]
+  conversationId?: string;
+  initialMessages?: ChatMessage[];
+  initialToolEvents?: ToolEvent[];
+  onNewChat?: () => void;
+  conversations?: ConversationItem[];
 }
 
 function FullChatApp({ 
+  conversationId,
   initialMessages = [], 
   initialToolEvents = [], 
   onNewChat,
   conversations = []
 }: FullChatAppProps) {
+  const [sidebarConversations, setSidebarConversations] = useState<ConversationItem[]>(conversations);
+  const [conversationTitle, setConversationTitle] = useState<string>("New Chat");
+
+  const handleConversationUpdate = async () => {
+    const convs = await getConversationsForSidebar();
+    setSidebarConversations(convs);
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      const convs = await getConversationsForSidebar();
+      setSidebarConversations(convs);
+      
+      // Load conversation title
+      if (conversationId) {
+        const conversation = await getConversation(conversationId);
+        if (conversation) {
+          setConversationTitle(conversation.title);
+        }
+      }
+    };
+    loadData();
+  }, [conversationId]);
+
   return (
     <SidebarProvider>
-      <ChatSidebar onNewChat={onNewChat} conversations={conversations} />
+      <ChatSidebar 
+        onNewChat={onNewChat} 
+        conversations={sidebarConversations}
+        currentConversationId={conversationId}
+        onConversationDeleted={handleConversationUpdate}
+      />
       <SidebarInset>
         <ChatContent 
+          conversationId={conversationId}
           initialMessages={initialMessages}
           initialToolEvents={initialToolEvents}
+          onConversationUpdate={handleConversationUpdate}
+          conversationTitle={conversationTitle}
         />
       </SidebarInset>
     </SidebarProvider>
   )
 }
 
-export { FullChatApp, type ConversationItem, type ConversationGroup }
+export { FullChatApp, type ConversationItem }

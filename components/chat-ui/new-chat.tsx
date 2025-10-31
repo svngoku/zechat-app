@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,104 +10,85 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { PromptSuggestion } from "@/components/ui/prompt-suggestion"
 import { cn } from "@/lib/utils";
 import {
   Mic,
   Paperclip,
   Plus,
-  PlusIcon,
-  Search,
-  Send,
   Sparkles,
-  Waves,
   AlertCircle,
   Loader2,
+  ArrowUp,
+  LibraryBig,
+  Search,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   chatApiResponseSchema,
   mapApiResponseToChatUpserts,
   type ChatMessage,
   type ToolEvent,
 } from "@/lib/chat-types";
+import { createConversationId, saveConversation, getConversationsForSidebar } from "@/lib/chat-storage";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
   SidebarProvider,
 } from "@/components/ui/sidebar";
+import { ChatSidebar, type ConversationItem } from "@/components/chat-ui/chat-sidebar";
 
-interface NewChatAppProps {
-  onStartChat: (data: {
-    messages: ChatMessage[];
-    toolEvents: ToolEvent[];
-  }) => void;
-}
 
-// Dummy conversation history for the sidebar (can be real data later)
-const conversationHistory = [
+const suggestionGroups = [
   {
-    period: "Recent",
-    conversations: [
-      {
-        id: "placeholder1",
-        title: "Example conversation",
-      },
+    label: "History",
+    highlight: "Discover",
+    items: [
+      "Who was Francisco de Almeida and what happened to him along Africa's southernmost coast in 1510?",
+      "Who were the primary developers of Cordova in the 10th century according to the text?",
+      "What significant event in 1492 is described as ending Spain's greatness, and what followed in Spanish history?",
+    ],
+  },
+  {
+    label: "Language & Culture",
+    highlight: "Explain",
+    items: [
+      "What does the Akan proverb “Okoto nnwo anomaa” mean and how is it used in the context of genetics?",
     ],
   },
 ];
 
 function NewChatSidebar() {
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+
+  const loadConversations = async () => {
+    const convs = await getConversationsForSidebar();
+    setConversations(convs);
+  };
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
   return (
-    <Sidebar>
-      <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
-        <div className="flex flex-row items-center gap-2 px-2 mx-4 rounded-lg py-2">
-          <img src="/svgs_collection/zeroentropy-dark.svg" className="h-auto" alt="logo" />
-        </div>
-        <Button variant="ghost" className="size-8">
-          <Search className="size-4" />
-        </Button>
-      </SidebarHeader>
-      <SidebarContent className="pt-4">
-        <div className="px-4">
-          <Button
-            variant="outline"
-            className="mb-4 flex w-full items-center gap-2"
-            disabled
-          >
-            <PlusIcon className="size-4" />
-            <span>New Chat</span>
-          </Button>
-        </div>
-        {conversationHistory.map((group) => (
-          <SidebarGroup key={group.period}>
-            <SidebarGroupLabel>{group.period}</SidebarGroupLabel>
-            <SidebarMenu>
-              {group.conversations.map((conversation) => (
-                <SidebarMenuButton key={conversation.id} disabled>
-                  <span className="text-muted-foreground">{conversation.title}</span>
-                </SidebarMenuButton>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
-      </SidebarContent>
-    </Sidebar>
+    <ChatSidebar 
+      conversations={conversations}
+      newChatDisabled={false}
+      onConversationDeleted={loadConversations}
+    />
   );
 }
 
-function NewChatContent({ onStartChat }: NewChatAppProps) {
+function NewChatContent() {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeCategory, setActiveCategory] = useState("")
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,14 +129,10 @@ function NewChatContent({ onStartChat }: NewChatAppProps) {
         messages.push(assistantMessage);
       }
 
-      onStartChat({ messages, toolEvents });
-
-      // Clear the input
-      setMessage("");
-      setIsExpanded(false);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      // Save conversation and redirect
+      const conversationId = createConversationId();
+      await saveConversation(conversationId, messages, toolEvents);
+      router.push(`/chat/${conversationId}`);
     } catch (err) {
       console.error("Chat submission error:", err);
       setError(
@@ -184,171 +160,214 @@ function NewChatContent({ onStartChat }: NewChatAppProps) {
     }
   };
 
+  const activeCategoryData = suggestionGroups.find(
+    (group) => group.label === activeCategory
+  )
+
+  // Determine which suggestions to show
+  const showCategorySuggestions = activeCategory !== ""
+
   return (
     <main className="flex h-screen flex-col overflow-hidden">
-      <div className="flex-1 flex items-center justify-center overflow-y-auto">
-        <div className="w-full max-w-3xl px-4">
-          <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap">
-            How can I help you today?
+      <div className="flex-1 flex items-center justify-center overflow-y-auto mx-full">
+        <div className="w-full max-w-3xl px-3 mt-12">
+          <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap font-sans">
+            What do we need to search today ?
           </h1>
-
           {error && (
             <div className="mb-4 mx-auto max-w-2xl rounded-lg bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-2">
               <AlertCircle className="size-4 text-destructive mt-0.5" />
               <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
-
           <form onSubmit={handleSubmit} className="group/composer w-full">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="sr-only"
-          onChange={() => {}}
-        />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="sr-only"
+              onChange={() => {}}
+            />
 
-        <div
-          className={cn(
-            "w-full max-w-2xl mx-auto bg-transparent dark:bg-muted/50 cursor-text overflow-clip bg-clip-padding p-2.5 shadow-lg border border-border transition-all duration-200",
-            {
-              "rounded-3xl grid grid-cols-1 grid-rows-[auto_1fr_auto]":
-                isExpanded,
-              "rounded-[28px] grid grid-cols-[auto_1fr_auto] grid-rows-[auto_1fr_auto]":
-                !isExpanded,
-            }
-          )}
-          style={{
-            gridTemplateAreas: isExpanded
-              ? "'header' 'primary' 'footer'"
-              : "'header header header' 'leading primary trailing' '. footer .'",
-          }}
-        >
-          <div
-            className={cn(
-              "flex min-h-14 items-center overflow-x-hidden px-1.5",
-              {
-                "px-2 py-1 mb-0": isExpanded,
-                "-my-2.5": !isExpanded,
-              }
-            )}
-            style={{ gridArea: "primary" }}
-          >
-            <div className="flex-1 overflow-auto max-h-52">
-              <Textarea
-                ref={textareaRef}
-                value={message}
-                onChange={handleTextareaChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask anything"
-                className="min-h-0 resize-none rounded-none border-0 p-0 text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin dark:bg-transparent"
-                rows={1}
-              />
-            </div>
-          </div>
-
-          <div
-            className={cn("flex", { hidden: isExpanded })}
-            style={{ gridArea: "leading" }}
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 rounded-full hover:bg-accent outline-none ring-0"
-                >
-                  <Plus className="size-6 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent
-                align="start"
-                className="max-w-xs rounded-2xl p-1.5"
-              >
-                <DropdownMenuGroup className="space-y-1">
-                  <DropdownMenuItem
-                    className="rounded-[calc(1rem-6px)]"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Paperclip size={20} className="opacity-60" />
-                    Add photos & files
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="rounded-[calc(1rem-6px)]"
-                    onClick={() => {}}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles size={20} className="opacity-60" />
-                      Agent mode
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="rounded-[calc(1rem-6px)]"
-                    onClick={() => {}}
-                  >
-                    <Search size={20} className="opacity-60" />
-                    Deep Research
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <div
-            className="flex items-center gap-2"
-            style={{ gridArea: isExpanded ? "footer" : "trailing" }}
-          >
-            <div className="ms-auto flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full hover:bg-accent"
-              >
-                <Mic className="size-5 text-muted-foreground" />
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full hover:bg-accent relative"
-              >
-                <Waves className="size-5 text-muted-foreground" />
-              </Button>
-
-              {message.trim() && (
-                <Button
-                  type="submit"
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="size-5 animate-spin" />
-                  ) : (
-                    <Send className="size-5" />
-                  )}
-                </Button>
+            <div
+              className={cn(
+                "w-full max-w-2xl mx-auto bg-transparent dark:bg-muted/50 cursor-text overflow-clip bg-clip-padding p-2.5 shadow-lg border border-border transition-all duration-200",
+                {
+                  "rounded-3xl grid grid-cols-1 grid-rows-[auto_1fr_auto]":
+                    isExpanded,
+                  "rounded-[28px] grid grid-cols-[auto_1fr_auto] grid-rows-[auto_1fr_auto]":
+                    !isExpanded,
+                }
               )}
+              style={{
+                gridTemplateAreas: isExpanded
+                  ? "'header' 'primary' 'footer'"
+                  : "'header header header' 'leading primary trailing' '. footer .'",
+              }}
+            >
+              <div
+                className={cn(
+                  "flex min-h-14 items-center overflow-x-hidden px-1.5",
+                  {
+                    "px-2 py-1 mb-0": isExpanded,
+                    "-my-2.5": !isExpanded,
+                  }
+                )}
+                style={{ gridArea: "primary" }}
+              >
+                <div className="flex-1 overflow-auto max-h-52">
+                  <Textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={handleTextareaChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask anything"
+                    className="min-h-0 resize-none rounded-none border-0 p-0 text-base placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin dark:bg-transparent"
+                    rows={1}
+                  />
+                </div>
+              </div>
+
+              <div
+                className={cn("flex", { hidden: isExpanded })}
+                style={{ gridArea: "leading" }}
+              >
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full hover:bg-accent outline-none ring-0"
+                    >
+                      <Plus className="size-6 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent
+                    align="start"
+                    className="max-w-xs rounded-2xl p-1.5"
+                  >
+                    <DropdownMenuGroup className="space-y-1">
+                      <DropdownMenuItem
+                        className="rounded-[calc(1rem-6px)]"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip size={20} className="opacity-60" />
+                        Add photos & files
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="rounded-[calc(1rem-6px)]"
+                        onClick={() => {}}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={20} className="opacity-60" />
+                          Agent mode
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="rounded-[calc(1rem-6px)]"
+                        onClick={() => {}}
+                      >
+                        <Search size={20} className="opacity-60" />
+                        Deep Research
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div
+                className="flex items-center gap-2"
+                style={{ gridArea: isExpanded ? "footer" : "trailing" }}
+              >
+                <div className="ms-auto flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full hover:bg-accent"
+                  >
+                    <Mic className="size-5 text-muted-foreground" />
+                  </Button>
+                  {message.trim() && (
+                    <Button
+                      type="submit"
+                      size="icon"
+                      className="size-9 rounded-full bg-[#5154ff] hover:bg-[#4594ff] cursor-pointer"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="size-5 animate-spin" />
+                      ) : (
+                        <ArrowUp size={18} />
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+            {/* Suggestion Section */}
+            <div className="mt-6 mx-8 flex w-full font-sans">
+              <div className="relative flex w-full flex-col items-center justify-center space-y-2">
+                <div className="absolute top-0 left-0 h-[70px] w-full">
+                  {activeCategory && suggestionGroups.find((g) => g.label === activeCategory) ? (
+                    <div className="flex w-full flex-col space-y-1">
+                      {suggestionGroups
+                        .find((g) => g.label === activeCategory)
+                        ?.items.map((suggestion) => (
+                          <PromptSuggestion
+                            key={suggestion}
+                            className="font-sans"
+                            highlight={
+                              suggestionGroups.find((g) => g.label === activeCategory)?.highlight
+                            }
+                            onClick={() => {
+                              setMessage(suggestion);
+                              setIsExpanded(true);
+                              setActiveCategory("");
+                              if (textareaRef.current) {
+                                textareaRef.current.focus();
+                              }
+                            }}
+                          >
+                            {suggestion}
+                          </PromptSuggestion>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="relative flex w-full flex-wrap items-stretch justify-start gap-2">
+                      {suggestionGroups.map((group) => (
+                        <PromptSuggestion
+                          key={group.label}
+                          onClick={() => setActiveCategory(group.label)}
+                          className="capitalize"
+                        >
+                          <LibraryBig className="mr-2 h-4 w-4" />
+                          {group.label}
+                        </PromptSuggestion>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </form>
         </div>
+      </div>
+      <div className="group/thread-bottom-container relative isolate z-10 w-full basis-auto has-data-has-thread-error:pt-2 has-data-has-thread-error:[box-shadow:var(--sharp-edge-bottom-shadow)] md:border-transparent md:pt-0 dark:border-white/20 md:dark:border-transparent single-line min-h-0 mb-4 sm:grow flex flex-col">
+
       </div>
     </main>
   );
 }
 
-export default function NewChatApp(props: NewChatAppProps) {
+export default function NewChatApp() {
   return (
     <SidebarProvider>
       <NewChatSidebar />
       <SidebarInset>
-        <NewChatContent {...props} />
+        <NewChatContent />
       </SidebarInset>
     </SidebarProvider>
   );

@@ -4,6 +4,7 @@ import { ZeroEntropy } from "zeroentropy";
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.ZEROENTROPY_API_KEY;
+    const collection_name = process.env.ZEROENTROPY_COLLECTION_NAME
 
     if (!apiKey) {
       return NextResponse.json(
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Search the collection using fine-grained snippets
     const searchParams = {
-      collection_name: "animal-facts",
+      collection_name: collection_name,
       query: query,
       k: 5,
       granularity: "fine" as const,
@@ -31,8 +32,7 @@ export async function POST(request: NextRequest) {
 
     const response = await zclient.queries.topSnippets(searchParams);
 
-    // Format results for display
-    const results = response.results.map((result: any, index: number) => ({
+    const results = response.results.map((result: { content?: string; path?: string; score?: number }, index: number) => ({
       content: result.content || "",
       path: result.path || "",
       score: result.score || 0,

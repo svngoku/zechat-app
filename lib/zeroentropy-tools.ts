@@ -7,21 +7,19 @@ const searchDocumentsParamsSchema = z.object({
     .describe("The search query to find relevant documents"),
   collection: z
     .string()
-    .optional()
-    .describe("The collection name to search in (optional, uses default if not provided)"),
+    .describe("The collection name to search in (optional, uses default if not provided)")
+    .optional(),
   limit: z
     .number()
     .int()
     .min(1)
     .max(20)
-    .optional()
-    .default(5)
-    .describe("Maximum number of documents to return (default: 5)"),
+    .describe("Maximum number of documents to return (default: 5)")
+    .default(5),
   useReranker: z
     .boolean()
-    .optional()
-    .default(false)
-    .describe("Whether to use the reranker for better result quality"),
+    .describe("Whether to use the reranker for better result quality")
+    .default(false),
 });
 
 /**
@@ -69,26 +67,23 @@ const searchSnippetsParamsSchema = z.object({
       .describe("The search query to find relevant snippets"),
     collection: z
       .string()
-      .optional()
-      .describe("The collection name to search in (optional, uses default if not provided)"),
+      .describe("The collection name to search in (optional, uses default if not provided)")
+      .optional(),
     limit: z
       .number()
       .int()
       .min(1)
       .max(20)
-      .optional()
-      .default(5)
-      .describe("Maximum number of snippets to return (default: 5)"),
+      .describe("Maximum number of snippets to return (default: 5)")
+      .default(5),
     granularity: z
       .enum(["fine", "coarse"])
-      .optional()
-      .default("fine")
-      .describe("Snippet granularity: 'fine' for detailed snippets, 'coarse' for larger chunks"),
+      .describe("Snippet granularity: 'fine' for detailed snippets, 'coarse' for larger chunks")
+      .default("fine"),
     useReranker: z
       .boolean()
-      .optional()
-      .default(false)
-      .describe("Whether to use the reranker for better result quality"),
+      .describe("Whether to use the reranker for better result quality")
+      .default(false),
 });
 
 /**
