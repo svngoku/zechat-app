@@ -183,181 +183,182 @@ function ChatContent({ conversationId, initialMessages = [], initialToolEvents =
                 : []
 
               return (
-               <div>
-                 <Message
-                  key={message.id}
-                  className={cn(
-                    "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6",
-                    isAssistant ? "items-start" : "items-end"
-                  )}
-                >
-                  {isAssistant ? (
-                    <div className="group flex w-full flex-col gap-2">
-                      {message.content && (
-                        <MessageContent
-                          className="text-foreground prose flex-1 rounded-lg bg-transparent p-0 font-sans"
-                          markdown
-                        >
-                          {message.content}
-                        </MessageContent>
+                <>
+                  <div key={message.id}>
+                    <Message
+                      className={cn(
+                        "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6",
+                        isAssistant ? "items-start" : "items-end"
                       )}
-                      
-                      {/* Render tool events */}
-                      {messageToolEvents.length > 0 && (
-                        <div className="space-y-2 mt-2">
-                          {(() => {
-                            const toolCalls = messageToolEvents.filter(e => e.type === "tool-call")
-                            const toolResults = messageToolEvents.filter(e => e.type === "tool-result")
-                            const correlated = correlateToolCallsWithResults(
-                              toolCalls as Parameters<typeof correlateToolCallsWithResults>[0],
-                              toolResults as Parameters<typeof correlateToolCallsWithResults>[1]
-                            )
-                            
-                            return correlated
-                              .filter(({ result }) => {
-                                if (!result) return false;
-                                const resultData = result.result as { 
-                                  success?: boolean;
-                                  count?: number;
-                                  results?: Array<{
-                                    id: string;
-                                    path: string;
-                                    content: string;
-                                    score?: number;
-                                  }>;
-                                } | undefined;
-                                return resultData !== null && resultData !== undefined;
-                              })
-                              .map(({ call, result }) => {
-                                const resultData = result!.result as { 
-                                  success?: boolean;
-                                  count?: number;
-                                  results?: Array<{
-                                    id: string;
-                                    path: string;
-                                    content: string;
-                                    score?: number;
-                                  }>;
-                                } | undefined;
+                    >
+                      {isAssistant ? (
+                        <div className="group flex w-full flex-col gap-2">
+                          {message.content && (
+                            <MessageContent
+                              className="text-foreground prose flex-1 rounded-lg bg-transparent p-0 font-sans"
+                              markdown
+                            >
+                              {message.content}
+                            </MessageContent>
+                          )}
+                          
+                          {/* Render tool events */}
+                          {messageToolEvents.length > 0 && (
+                            <div className="space-y-2 mt-2">
+                              {(() => {
+                                const toolCalls = messageToolEvents.filter(e => e.type === "tool-call")
+                                const toolResults = messageToolEvents.filter(e => e.type === "tool-result")
+                                const correlated = correlateToolCallsWithResults(
+                                  toolCalls as Parameters<typeof correlateToolCallsWithResults>[0],
+                                  toolResults as Parameters<typeof correlateToolCallsWithResults>[1]
+                                )
                                 
-                                return (
-                                  <div
-                                    key={call.toolCallId}
-                                    className="border-muted bg-muted/30 rounded-lg border p-3"
-                                  >
-                                    <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium font-sans">
-                                      <Search className="size-4" />
-                                      {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
-                                      {resultData?.count && ` (${resultData.count} results)`}
-                                    </div>
+                                return correlated
+                                  .filter(({ result }) => {
+                                    if (!result) return false;
+                                    const resultData = result.result as { 
+                                      success?: boolean;
+                                      count?: number;
+                                      results?: Array<{
+                                        id: string;
+                                        path: string;
+                                        content: string;
+                                        score?: number;
+                                      }>;
+                                    } | undefined;
+                                    return resultData !== null && resultData !== undefined;
+                                  })
+                                  .map(({ call, result }) => {
+                                    const resultData = result!.result as { 
+                                      success?: boolean;
+                                      count?: number;
+                                      results?: Array<{
+                                        id: string;
+                                        path: string;
+                                        content: string;
+                                        score?: number;
+                                      }>;
+                                    } | undefined;
                                     
-                                    {resultData?.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
-                                      <div className="space-y-2">
-                                        {resultData.results.slice(0, 3).map((r) => (
-                                          <div
-                                            key={r.id}
-                                            className="border-border bg-background rounded border p-2 text-sm"
-                                          >
-                                            <div className="text-muted-foreground mb-1 text-xs font-mono">
-                                              {r.path} {r.score && `(Score: ${r.score.toFixed(3)})`}
-                                            </div>
-                                            <div className="line-clamp-2 font-sans">
-                                              {r.content}
-                                            </div>
+                                    return (
+                                      <div
+                                        key={call.toolCallId}
+                                        className="border-muted bg-muted/30 rounded-lg border p-3"
+                                      >
+                                        <div className="text-muted-foreground mb-2 flex items-center gap-2 text-sm font-medium font-sans">
+                                          <Search className="size-4" />
+                                          {call.toolName === "searchSnippets" ? "Search Snippets" : "Search Documents"}
+                                          {resultData?.count && ` (${resultData.count} results)`}
+                                        </div>
+                                        
+                                        {resultData?.success && Array.isArray(resultData.results) && resultData.results.length > 0 && (
+                                          <div className="space-y-2">
+                                            {resultData.results.slice(0, 3).map((r) => (
+                                              <div
+                                                key={r.id}
+                                                className="border-border bg-background rounded border p-2 text-sm"
+                                              >
+                                                <div className="text-muted-foreground mb-1 text-xs font-mono">
+                                                  {r.path} {r.score && `(Score: ${r.score.toFixed(3)})`}
+                                                </div>
+                                                <div className="line-clamp-2 font-sans">
+                                                  {r.content}
+                                                </div>
+                                              </div>
+                                            ))}
                                           </div>
-                                        ))}
+                                        )}
+                                        
+                                        {(!resultData?.success || !resultData.results?.length) && (
+                                          <div className="text-muted-foreground text-sm font-sans">
+                                            No results found
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                    
-                                    {(!resultData?.success || !resultData.results?.length) && (
-                                      <div className="text-muted-foreground text-sm font-sans">
-                                        No results found
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })
-                          })()}
+                                    );
+                                  })
+                              })()}
+                            </div>
+                          )}
+                          
+                          <MessageActions
+                            className={cn(
+                              "-ml-2.5 flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100",
+                              isLastMessage && "opacity-100"
+                            )}
+                          >
+                            <MessageAction tooltip="Copy" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <Copy />
+                              </Button>
+                            </MessageAction>
+                            <MessageAction tooltip="Upvote" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <ThumbsUp />
+                              </Button>
+                            </MessageAction>
+                            <MessageAction tooltip="Downvote" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <ThumbsDown />
+                              </Button>
+                            </MessageAction>
+                          </MessageActions>
+                        </div>
+                      ) : (
+                        <div className="group flex flex-col items-end gap-1">
+                          <MessageContent className="bg-muted text-primary max-w-[85%] rounded-3xl px-5 py-2.5 sm:max-w-[75%] font-sans">
+                            {message.content}
+                          </MessageContent>
+                          <MessageActions
+                            className={cn(
+                              "flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                            )}
+                          >
+                            <MessageAction tooltip="Edit" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <Pencil />
+                              </Button>
+                            </MessageAction>
+                            <MessageAction tooltip="Delete" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <Trash />
+                              </Button>
+                            </MessageAction>
+                            <MessageAction tooltip="Copy" delayDuration={100}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full"
+                              >
+                                <Copy />
+                              </Button>
+                            </MessageAction>
+                          </MessageActions>
                         </div>
                       )}
-                      
-                      <MessageActions
-                        className={cn(
-                          "-ml-2.5 flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100",
-                          isLastMessage && "opacity-100"
-                        )}
-                      >
-                        <MessageAction tooltip="Copy" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <Copy />
-                          </Button>
-                        </MessageAction>
-                        <MessageAction tooltip="Upvote" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <ThumbsUp />
-                          </Button>
-                        </MessageAction>
-                        <MessageAction tooltip="Downvote" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <ThumbsDown />
-                          </Button>
-                        </MessageAction>
-                      </MessageActions>
-                    </div>
-                  ) : (
-                    <div className="group flex flex-col items-end gap-1">
-                      <MessageContent className="bg-muted text-primary max-w-[85%] rounded-3xl px-5 py-2.5 sm:max-w-[75%] font-sans">
-                        {message.content}
-                      </MessageContent>
-                      <MessageActions
-                        className={cn(
-                          "flex gap-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-                        )}
-                      >
-                        <MessageAction tooltip="Edit" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <Pencil />
-                          </Button>
-                        </MessageAction>
-                        <MessageAction tooltip="Delete" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <Trash />
-                          </Button>
-                        </MessageAction>
-                        <MessageAction tooltip="Copy" delayDuration={100}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-full"
-                          >
-                            <Copy />
-                          </Button>
-                        </MessageAction>
-                      </MessageActions>
-                    </div>
-                  )}
-                </Message>
-               </div>
+                    </Message>
+                  </div>
+                </>
               )
             })}
           </ChatContainerContent>

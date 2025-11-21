@@ -22,6 +22,7 @@ import {
   ArrowUp,
   LibraryBig,
   Search,
+  FolderIcon,
 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,14 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { ChatSidebar, type ConversationItem } from "@/components/chat-ui/chat-sidebar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { fetchCollections } from "@/lib/collection-client";
 
 
 const suggestionGroups = [
@@ -87,7 +96,24 @@ function NewChatContent() {
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeCategory, setActiveCategory] = useState("")
+  const [activeCategory, setActiveCategory] = useState("");
+  const [collections, setCollections] = useState<string[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const loadCollections = async () => {
+      try {
+        const colls = await fetchCollections();
+        setCollections(colls);
+        if (colls.length > 0) {
+          setSelectedCollection(colls[0]);
+        }
+      } catch (error) {
+        console.error("Failed to load collections:", error);
+      }
+    };
+    loadCollections();
+  }, []);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,6 +137,7 @@ function NewChatContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: userMessage.role, content: userMessage.content }],
+          collection: selectedCollection,
         }),
       });
 
@@ -172,7 +199,7 @@ function NewChatContent() {
       <div className="flex-1 flex items-center justify-center overflow-y-auto mx-full">
         <div className="w-full max-w-3xl px-3 mt-12">
           <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap font-sans">
-            What do we need to search today ?
+            What do we need to search today?
           </h1>
           {error && (
             <div className="mb-4 mx-auto max-w-2xl rounded-lg bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-2">
@@ -229,10 +256,10 @@ function NewChatContent() {
               </div>
 
               <div
-                className={cn("flex", { hidden: isExpanded })}
+                className={cn("flex items-center gap-1", { hidden: isExpanded })}
                 style={{ gridArea: "leading" }}
               >
-                <DropdownMenu>
+                {/* <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
@@ -274,7 +301,35 @@ function NewChatContent() {
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu> */}
+                
+                {collections.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 rounded-full hover:bg-accent outline-none ring-0"
+                      >
+                        <FolderIcon className="size-4 text-muted-foreground shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="rounded-2xl max-w-xs p-1.5 ">
+                      <DropdownMenuGroup className="space-y-1">
+                        {collections.map((collection) => (
+                          <DropdownMenuItem
+                            key={collection}
+                            onClick={() => setSelectedCollection(collection)}
+                            className={`rounded-[calc(1rem-6px)] ${selectedCollection === collection ? "bg-accent" : ""}`}
+                          >
+                            {collection}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
 
               <div

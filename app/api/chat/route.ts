@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     // Parse request body
     const body = await req.json();
     const messages: CoreMessage[] = body.messages;
+    const targetCollection: string | undefined = body.collection;
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -21,15 +22,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Build system prompt with collection context
+    const systemPrompt = targetCollection
+      ? `You are a helpful AI assistant with access to a knowledge base powered by ZeroEntropy.
+
+The user is currently searching in the "${targetCollection}" collection.
+When using search tools, ALWAYS specify this collection in your search queries.
+
+When users ask questions that would benefit from external knowledge or facts, use the available search tools:
+- Use 'searchSnippets' for specific, detailed information or precise facts
+- Use 'searchDocuments' for broader context or when you need complete document content
+
+IMPORTANT: Always include "collection": "${targetCollection}" in your tool calls.`
+      : `You are a helpful AI assistant with access to a knowledge base powered by ZeroEntropy.
+
+When users ask questions that would benefit from external knowledge or facts, use the available search tools:
+- Use 'searchSnippets' for specific, detailed information or precise facts
+- Use 'searchDocuments' for broader context or when you need complete document content`;
+
     // Generate text response (non-streaming) with automatic tool execution
     const response = await generateText({
       model: openai("gpt-4.1"),
       messages,
-      system: `You are a helpful AI assistant with access to a knowledge base powered by ZeroEntropy.
-
-When users ask questions that would benefit from external knowledge or facts, use the available search tools:
-- Use 'searchSnippets' for specific, detailed information or precise facts
-- Use 'searchDocuments' for broader context or when you need complete document content`,
+      system: systemPrompt,
       tools: zeroEntropyTools,
       stopWhen: stepCountIs(10)
     });

@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusIcon, Search, MoreHorizontal, Trash2 } from "lucide-react";
+import { PlusIcon, Search, MoreHorizontal, Trash2, FolderIcon } from "lucide-react";
 import { deleteConversation } from "@/lib/chat-storage";
 
 export type ConversationItem = {
@@ -165,15 +165,23 @@ export function ChatSidebar({
         </Button>
       </SidebarHeader>
       <SidebarContent className="pt-4">
-        <div className="px-4">
+        <div className="px-4 space-y-2">
           <Button
             variant="outline"
-            className="mb-4 flex w-full items-center gap-2 font-sans"
+            className="flex w-full items-center gap-2 font-sans"
             onClick={handleNewChatClick}
             disabled={newChatDisabled}
           >
             <PlusIcon className="size-4" />
             <span className="font-sans">New Chat</span>
+          </Button>
+          <Button
+            variant="ghost"
+            className="flex w-full items-center gap-2 font-sans"
+            onClick={() => router.push("/collections")}
+          >
+            <FolderIcon className="size-4" />
+            <span className="font-sans">Collections</span>
           </Button>
         </div>
         {conversationGroups.length === 0 ? (
