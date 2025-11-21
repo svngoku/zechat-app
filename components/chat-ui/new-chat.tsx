@@ -259,7 +259,7 @@ function NewChatContent() {
                 className={cn("flex items-center gap-1", { hidden: isExpanded })}
                 style={{ gridArea: "leading" }}
               >
-                <DropdownMenu>
+                {/* <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
@@ -301,22 +301,34 @@ function NewChatContent() {
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu> */}
                 
                 {collections.length > 0 && (
-                  <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-                    <SelectTrigger className="h-9 w-auto min-w-[140px] border-0 bg-transparent hover:bg-accent shadow-none px-2 gap-1">
-                      <FolderIcon className="size-4 text-muted-foreground shrink-0" />
-                      <SelectValue placeholder="Collection" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {collections.map((collection) => (
-                        <SelectItem key={collection} value={collection}>
-                          {collection}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 rounded-full hover:bg-accent outline-none ring-0"
+                      >
+                        <FolderIcon className="size-4 text-muted-foreground shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="rounded-2xl max-w-xs p-1.5 ">
+                      <DropdownMenuGroup className="space-y-1">
+                        {collections.map((collection) => (
+                          <DropdownMenuItem
+                            key={collection}
+                            onClick={() => setSelectedCollection(collection)}
+                            className={`rounded-[calc(1rem-6px)] ${selectedCollection === collection ? "bg-accent" : ""}`}
+                          >
+                            {collection}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
 
