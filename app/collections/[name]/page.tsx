@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { ChatSidebar } from "@/components/chat-ui/chat-sidebar";
+import { getConversationsForSidebar } from "@/lib/chat-storage";
+import type { ConversationItem } from "@/components/chat-ui/chat-sidebar";
 import {
   fetchDocuments,
   addDocument,
@@ -55,7 +59,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-export default function CollectionDetailPage() {
+function CollectionDetailContent() {
   const params = useParams();
   const router = useRouter();
   const collectionName = decodeURIComponent(params.name as string);
@@ -397,5 +401,30 @@ export default function CollectionDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function CollectionDetailSidebar() {
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+
+  useEffect(() => {
+    const loadConversations = async () => {
+      const convs = await getConversationsForSidebar();
+      setConversations(convs);
+    };
+    loadConversations();
+  }, []);
+
+  return <ChatSidebar conversations={conversations} newChatDisabled={false} />;
+}
+
+export default function CollectionDetailPage() {
+  return (
+    <SidebarProvider>
+      <CollectionDetailSidebar />
+      <SidebarInset>
+        <CollectionDetailContent />
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

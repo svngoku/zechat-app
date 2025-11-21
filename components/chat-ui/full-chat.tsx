@@ -183,9 +183,8 @@ function ChatContent({ conversationId, initialMessages = [], initialToolEvents =
                 : []
 
               return (
-               <div>
+               <div key={message.id}>
                  <Message
-                  key={message.id}
                   className={cn(
                     "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6",
                     isAssistant ? "items-start" : "items-end"

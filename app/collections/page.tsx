@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { ChatSidebar } from "@/components/chat-ui/chat-sidebar";
+import type { ConversationItem } from "@/components/chat-ui/chat-sidebar";
+import { getConversationsForSidebar } from "@/lib/chat-storage";
 import {
   fetchCollections,
   createCollection,
@@ -36,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlusIcon, TrashIcon, FolderIcon, FileTextIcon } from "lucide-react";
 import { toast } from "sonner";
 
-export default function CollectionsPage() {
+function CollectionsContent() {
   const router = useRouter();
   const [collections, setCollections] = useState<string[]>([]);
   const [collectionStats, setCollectionStats] = useState<Map<string, CollectionStats>>(new Map());
@@ -285,5 +289,30 @@ export default function CollectionsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function CollectionsSidebar() {
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+
+  useEffect(() => {
+    const loadConversations = async () => {
+      const convs = await getConversationsForSidebar();
+      setConversations(convs);
+    };
+    loadConversations();
+  }, []);
+
+  return <ChatSidebar conversations={conversations} newChatDisabled={false} />;
+}
+
+export default function CollectionsPage() {
+  return (
+    <SidebarProvider>
+      <CollectionsSidebar />
+      <SidebarInset>
+        <CollectionsContent />
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
