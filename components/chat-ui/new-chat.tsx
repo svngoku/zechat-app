@@ -201,23 +201,6 @@ function NewChatContent() {
           <h1 className="mb-7 mx-auto max-w-2xl text-center text-2xl font-semibold leading-9 text-foreground px-1 text-pretty whitespace-pre-wrap font-sans">
             What do we need to search today?
           </h1>
-          {collections.length > 0 && (
-            <div className="mb-4 mx-auto max-w-2xl flex items-center gap-2">
-              <FolderIcon className="size-5 text-muted-foreground" />
-              <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-                <SelectTrigger className="w-[280px]">
-                  <SelectValue placeholder="Select a collection" />
-                </SelectTrigger>
-                <SelectContent>
-                  {collections.map((collection) => (
-                    <SelectItem key={collection} value={collection}>
-                      {collection}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {error && (
             <div className="mb-4 mx-auto max-w-2xl rounded-lg bg-destructive/10 border border-destructive/20 p-3 flex items-start gap-2">
               <AlertCircle className="size-4 text-destructive mt-0.5" />
@@ -273,7 +256,7 @@ function NewChatContent() {
               </div>
 
               <div
-                className={cn("flex", { hidden: isExpanded })}
+                className={cn("flex items-center gap-1", { hidden: isExpanded })}
                 style={{ gridArea: "leading" }}
               >
                 <DropdownMenu>
@@ -319,6 +302,22 @@ function NewChatContent() {
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                
+                {collections.length > 0 && (
+                  <Select value={selectedCollection} onValueChange={setSelectedCollection}>
+                    <SelectTrigger className="h-9 w-auto min-w-[140px] border-0 bg-transparent hover:bg-accent shadow-none px-2 gap-1">
+                      <FolderIcon className="size-4 text-muted-foreground shrink-0" />
+                      <SelectValue placeholder="Collection" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {collections.map((collection) => (
+                        <SelectItem key={collection} value={collection}>
+                          {collection}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div
