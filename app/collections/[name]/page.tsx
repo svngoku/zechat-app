@@ -346,16 +346,15 @@ export default function CollectionDetailPage() {
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>{viewDocument?.path}</DialogTitle>
-            <DialogDescription>
-              {viewDocument && (
-                <div className="flex items-center gap-2 mt-2">
-                  {getStatusBadge(viewDocument.index_status)}
-                  <Badge variant="outline">{formatBytes(viewDocument.size)}</Badge>
-                  <Badge variant="outline">{viewDocument.num_pages} pages</Badge>
-                </div>
-              )}
-            </DialogDescription>
+            <DialogDescription>Document details</DialogDescription>
           </DialogHeader>
+          {viewDocument && (
+            <div className="flex items-center gap-2 -mt-2 mb-2">
+              {getStatusBadge(viewDocument.index_status)}
+              <Badge variant="outline">{formatBytes(viewDocument.size)}</Badge>
+              <Badge variant="outline">{viewDocument.num_pages} pages</Badge>
+            </div>
+          )}
           <ScrollArea className="h-[400px] w-full rounded border p-4">
             {isLoadingContent ? (
               <div className="flex items-center justify-center h-full">
